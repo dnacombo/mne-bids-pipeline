@@ -2,8 +2,7 @@
 
 ### :new: New features & enhancements
 
-- Improved performance by caching BIDSPath matches for Maxwell Filter calibration and cross-talk files (#1215 by @larsoner).
-- Improved performance and logging when skipping cached steps (#1216 by @larsoner).
+- Nothing yet
 
 [//]: # (- Whatever [`mf_filter_chpi`][mne_bids_pipeline._config.mf_filter_chpi] etc (#000 by @whoever))
 
@@ -11,11 +10,7 @@
 
 [//]: # (### :package: Requirements)
 
-### :bug: Bug fixes
-
-- Fixed a bug where the group average step would errantly write its sensor averaged Evoked plots to the last subject's report.
-  To fix this after-the-fact, delete the `derivatives/mne-bids-pipeline/sub-average/` and `derivatives/mne-bids-pipeline/sub-<LAST>` folders and rerun the pipeline.
-  (#1220 by @larsoner)
+[//]: # (### :bug: Bug fixes)
 
 [//]: # (### :books: Documentation)
 

@@ -1,3 +1,17 @@
+## v1.10.1 (2026-04-20)
+
+### :new: New features & enhancements
+
+- Improved performance by caching BIDSPath matches for Maxwell Filter calibration and cross-talk files (#1215 by @larsoner).
+- Improved performance and logging when skipping cached steps (#1216 by @larsoner).
+
+### :bug: Bug fixes
+
+- Fixed a bug where the group average step would errantly write its sensor averaged Evoked plots to the last subject's report.
+  To fix this after-the-fact, delete the `derivatives/mne-bids-pipeline/sub-average/` and `derivatives/mne-bids-pipeline/sub-<LAST>` folders and rerun the pipeline.
+  (#1220 by @larsoner)
+
+
 ## v1.10.0 (2026-04-06)
 
 ### :new: New features & enhancements
