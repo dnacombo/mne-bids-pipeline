@@ -1,3 +1,5 @@
+# Dev version
+
 ## v1.11.0 (unreleased)
 
 ### :new: New features & enhancements
@@ -8,12 +10,12 @@
 
 - The default for [`mne_log_level`][mne_bids_pipeline._config.mne_log_level] has been changed from `'error'` to `'warning'` to make possible dataset and processing errors more visible (#1224 by @larsoner)
 
-[//]: # (### :package: Requirements)
+[//3]: # (### :package: Requirements)
 
 ### :bug: Bug fixes
 
 - Fixed bug where [`log_level`][mne_bids_pipeline._config.log_level] was not being applied to the MBPlogger (#1224 by @larsoner)
 
-[//]: # (### :books: Documentation)
+[//5]: # (### :books: Documentation)
 
-[//]: # (### :medical_symbol: Code health and infrastructure)
+[//6]: # (### :medical_symbol: Code health and infrastructure)

@@ -1,17 +1,19 @@
+# Dev version
+
 ## v1.11.0 (unreleased)
 
 ### :new: New features & enhancements
 
 - Nothing yet
 
-[//]: # (- Whatever [`mf_filter_chpi`][mne_bids_pipeline._config.mf_filter_chpi] etc (#000 by @whoever))
+[//1]: # (- Whatever [`mf_filter_chpi`][mne_bids_pipeline._config.mf_filter_chpi] etc (#000 by @whoever))
 
-[//]: # (### :warning: Behavior changes)
+[//2]: # (### :warning: Behavior changes)
 
-[//]: # (### :package: Requirements)
+[//3]: # (### :package: Requirements)
 
-[//]: # (### :bug: Bug fixes)
+[//4]: # (### :bug: Bug fixes)
 
-[//]: # (### :books: Documentation)
+[//5]: # (### :books: Documentation)
 
-[//]: # (### :medical_symbol: Code health and infrastructure)
+[//6]: # (### :medical_symbol: Code health and infrastructure)
