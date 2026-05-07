@@ -6,6 +6,7 @@ import shutil
 import sys
 from collections.abc import Collection, Generator
 from contextlib import nullcontext
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -170,6 +171,30 @@ def dataset_test(request: pytest.FixtureRequest) -> Generator[None, None, None]:
         yield
 
 
+class _ReportTOCFinder(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.in_a = False
+        self.in_toc = False
+        self.toc_links = list()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.in_a = True
+        elif tag == "div" and ("id", "toc") in attrs:
+            self.in_toc = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a":
+            self.in_a = False
+        elif tag == "div" and self.in_toc:
+            self.in_toc = False
+
+    def handle_data(self, data: str) -> None:
+        if self.in_a and self.in_toc:
+            self.toc_links.append(data)
+
+
 @pytest.mark.dataset_test
 @pytest.mark.parametrize("dataset", list(TEST_SUITE))
 def test_run(
@@ -226,6 +251,34 @@ def test_run(
     with capsys.disabled():
         print()
         main()
+
+    # post-run checks for correctness
+    config_data = config_path.read_text("utf-8")
+
+    # sub-average evoked present in report
+    has_evoked_conditions = (
+        re.search(r"^\s*conditions =", config_data, flags=re.MULTILINE) is not None
+    )
+    if "sensor" in steps and has_evoked_conditions:
+        assert dataset not in ("ds000247", "ds000375")
+        ds_path = test_options.get("dataset", dataset)
+        avg_subj_path = (
+            DATA_DIR / "derivatives" / "mne-bids-pipeline" / ds_path / "sub-average"
+        )
+        assert avg_subj_path.is_dir()
+        if ds_path == "ERP_CORE":
+            avg_subj_path = avg_subj_path / f"ses-{test_options['task']}"
+            assert avg_subj_path.is_dir()
+        report_html_paths = list(avg_subj_path.rglob("sub-average*_report.html"))
+        assert len(report_html_paths)
+        parser = _ReportTOCFinder()
+        parser.feed(report_html_paths[0].read_text("utf-8"))
+        msg = "\n".join(["Not found in TOC titles:"] + parser.toc_links)
+        assert any("Average (sensor)" in name for name in parser.toc_links), msg
+    else:
+        # Just spot check a few that we know have "conditions" to make sure our
+        # conditional is good
+        assert dataset not in ("ds000248", "ds004229", "ERP_CORE_P3")
 
 
 @pytest.mark.parametrize("allow_missing_sessions", (False, True))

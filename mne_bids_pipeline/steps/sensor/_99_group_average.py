@@ -44,6 +44,7 @@ from mne_bids_pipeline._report import (
     plot_time_by_time_decoding_t_values,
 )
 from mne_bids_pipeline._run import (
+    _ignore_warnings,
     _prep_out_files,
     _update_for_splits,
     failsafe_run,
@@ -99,22 +100,26 @@ def average_evokeds(
 
     subjects = get_subjects_given_session(cfg, session)
     n_subjects = len(subjects)
-    for subject in subjects:
-        fname_in = in_files.pop(f"evoked-{subject}")
+    for this_subject in subjects:
+        fname_in = in_files.pop(f"evoked-{this_subject}")
         these_evokeds = mne.read_evokeds(fname_in)
         assert isinstance(these_evokeds, list)
         for idx, evoked in enumerate(these_evokeds):
+            assert isinstance(evoked, mne.Evoked)
             evokeds_nested[idx].append(evoked)  # Insert into the container
+    del this_subject
+    assert subject == "average", subject  # make sure we didn't bungle it
 
     evokeds: list[mne.Evoked] = list()
     for these_evokeds in evokeds_nested:
         if not these_evokeds:  # empty
             continue
-        evokeds.append(
-            mne.grand_average(
-                these_evokeds, interpolate_bads=cfg.interpolate_bads_grand_average
-            )  # Combine subjects
-        )
+        with _ignore_warnings("Only a single dataset was passed"):
+            evokeds.append(
+                mne.grand_average(
+                    these_evokeds, interpolate_bads=cfg.interpolate_bads_grand_average
+                )  # Combine subjects
+            )
         # Keep condition in comment
         evokeds[-1].comment = "Grand average: " + these_evokeds[0].comment
 
@@ -138,6 +143,8 @@ def average_evokeds(
     # given missing run)
     fname_verbose = fname_out.fpath.with_suffix(".fif.IS_INTENTIONALLY_EMPTY.txt")
     if not evokeds:
+        msg = "No evoked data present for any subject, writing empty file."
+        logger.info(**gen_log_kwargs(message=msg))
         fname_out.fpath.write_bytes(b"")
         fname_verbose.write_text("No evoked data present for any subject.\n", "utf-8")
         return _prep_out_files(exec_params=exec_params, out_files=out_files)
@@ -193,16 +200,17 @@ def average_evokeds(
             else:  # It's a contrast of two conditions.
                 title = f"Average (sensor) contrast{prefix}, {_title}"
                 tags = tags + ("contrast",)
-            report.add_evokeds(
-                evokeds=evoked,
-                titles=title,
-                projs=False,
-                tags=tags,
-                n_time_points=cfg.report_evoked_n_time_points,
-                # captions=evoked.comment,  # TODO upstream
-                replace=True,
-                n_jobs=1,  # don't auto parallelize
-            )
+            with _ignore_warnings("No .* channel locations found, cannot create"):
+                report.add_evokeds(
+                    evokeds=evoked,
+                    titles=title,
+                    projs=False,
+                    tags=tags,
+                    n_time_points=cfg.report_evoked_n_time_points,
+                    # captions=evoked.comment,  # TODO upstream
+                    replace=True,
+                    n_jobs=1,  # don't auto parallelize
+                )
 
     assert len(in_files) == 0, list(in_files)
     return _prep_out_files(exec_params=exec_params, out_files=out_files)

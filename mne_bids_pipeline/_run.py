@@ -1,5 +1,6 @@
 """Script-running utilities."""
 
+import contextlib
 import copy
 import functools
 import hashlib
@@ -9,6 +10,7 @@ import pdb
 import sys
 import time
 import traceback
+import warnings
 from collections.abc import Callable, Iterable
 from types import SimpleNamespace
 from typing import Any, Literal
@@ -156,12 +158,15 @@ class ConditionalStepMemory:
         self.get_input_fnames = get_input_fnames
         self.get_output_fnames = get_output_fnames
         self.memory_file_method = exec_params.memory_file_method
+        self.ignore_warnings = exec_params.ignore_warnings
         self.require_output = require_output
         self.func_name = func_name
         self.sidecars = sidecars
 
     def cache(self, func: Callable[..., Any]) -> Callable[..., Any]:
-        def wrapper(*args: list[Any], **kwargs: dict[str, Any]) -> bool:
+        def __mbp_cached_func_wrapper__(
+            *args: list[Any], **kwargs: dict[str, Any]
+        ) -> bool:
             in_files = out_files = None
             force_run = kwargs.pop("force_run", False)
             these_kwargs = kwargs.copy()
@@ -187,9 +192,8 @@ class ConditionalStepMemory:
             hashes = []
             for k, v in in_files.items():
                 hashes.append(hash_(k, v))
-                # also hash the sidecar files if this is a BIDSPath and
-                # MNE-BIDS is new enough
-                if not (self.sidecars and hasattr(v, "find_matching_sidecar")):
+                # also hash the sidecar files if this is a BIDSPath
+                if not (self.sidecars and isinstance(v, BIDSPath)):
                     continue
                 # from mne_bids/read.py
                 # The v.datatype is maybe not right, might need to use
@@ -201,8 +205,8 @@ class ConditionalStepMemory:
                     ("coordsystem", ".json"),
                     (v.datatype, ".json"),
                 ):
-                    sidecar = v.find_matching_sidecar(
-                        suffix=suffix, extension=extension, on_error="ignore"
+                    sidecar = _find_matching_sidecar_cached(
+                        v, suffix=suffix, extension=extension
                     )
                     if sidecar is None:
                         continue
@@ -257,9 +261,7 @@ class ConditionalStepMemory:
                     emoji = "🔂"
                 else:
                     # Check our output file hashes
-                    # Need to make a copy of kwargs["in_files"] in particular
-                    use_kwargs = copy.deepcopy(kwargs)
-                    out_files_hashes = memorized_func(*args, **use_kwargs)
+                    out_files_hashes = memorized_func(*args, **kwargs)
                     for key, (fname, this_hash) in out_files_hashes.items():
                         fname = pathlib.Path(fname)
                         if not fname.exists():
@@ -317,11 +319,13 @@ class ConditionalStepMemory:
                 # Fortunately we can use tuple-ness to tell the difference (we always
                 # return None or a dict)
                 done = False
-                out_files = memorized_func.call(*args, **kwargs)
+                with _ignore_warnings(self.ignore_warnings):
+                    out_files = memorized_func.call(*args, **kwargs)
                 if isinstance(out_files, tuple):
                     out_files = out_files[0]
             else:
-                out_files = memorized_func(*args, **kwargs)
+                with _ignore_warnings(self.ignore_warnings):
+                    out_files = memorized_func(*args, **kwargs)
             if self.require_output:
                 assert isinstance(out_files, dict) and len(out_files), (
                     f"Internal error: step must return non-empty out_files dict, got "
@@ -334,10 +338,20 @@ class ConditionalStepMemory:
                 )
             return not done
 
-        return wrapper
+        return __mbp_cached_func_wrapper__
 
     def clear(self) -> None:
         self.memory.clear()
+
+
+@contextlib.contextmanager
+def _ignore_warnings(ignore_warnings: Iterable[str] | str) -> Iterable[None]:
+    if isinstance(ignore_warnings, str):
+        ignore_warnings = [ignore_warnings]
+    with warnings.catch_warnings():
+        for msg in ignore_warnings:
+            warnings.filterwarnings("ignore", message=rf"[\S\s]*{msg}[\S\s]*")
+        yield
 
 
 def save_logs(*, config: SimpleNamespace, logs: Iterable[pd.Series | None]) -> None:
@@ -502,6 +516,34 @@ def _prep_out_files_path(
             kind="out",
         )
     return out_files
+
+
+def _find_matching_sidecar_cached(
+    bids_path: BIDSPath, suffix: str | None, extension: str
+) -> pathlib.Path | None:
+    state = bids_path.entities
+    for key in ("root", "suffix", "extension", "datatype", "check"):
+        val = getattr(bids_path, key)
+        state[key] = val
+    return _find_matching_sidecar_cached_impl(
+        **state, pass_suffix=suffix, pass_extension=extension
+    )
+
+
+@functools.cache
+def _find_matching_sidecar_cached_impl(
+    *, pass_suffix: str | None, pass_extension: str, **state: dict[str, Any]
+) -> pathlib.Path | None:
+    # We have to do this dance because BIDSPath objects are not hashable, but we
+    # want to cache the sidecar finding (which can be expensive when there are
+    # many files in a directory). So we cache based on the BIDSPath's state, which
+    # is hashable (as it's just a dict of strings and bools).
+    bids_path = BIDSPath(**state)
+    return bids_path.find_matching_sidecar(
+        suffix=pass_suffix,
+        extension=pass_extension,
+        on_error="ignore",
+    )
 
 
 def _path_to_str_hash(

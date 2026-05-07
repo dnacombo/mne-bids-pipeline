@@ -138,7 +138,7 @@ def test_config_options_used_in_steps() -> None:
     for func, count, nested in (
         # These "count" values can be updated when the helper functions change,
         # but it's nice to make sure we're getting what we expect otherwise
-        (_import_data_kwargs, 28, ()),
+        (_import_data_kwargs, 27, ()),
         (_limit_which_clean, 3, ()),
         (_restrict_analyze_channels, 3, ()),
         (_get_decoding_proc, 2, (_get_rank,)),
@@ -296,6 +296,7 @@ def test_datasets_in_doc() -> None:
     examples = [ex.split("/")[-1].split(".")[0] for ex in examples]
     assert len(examples) == len(set(examples))
     examples = set(examples)
+    examples.remove("examples")
 
     # 4. DATASET_OPTIONS
     dataset_names_list = list(DATASET_OPTIONS)
